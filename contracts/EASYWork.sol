@@ -88,7 +88,7 @@ contract EASYWork is Ownable2Step {
             revert EASYWork__WrongRefUId();
         }
 
-        address freelancer = decodeGigAttestationData(request.data.data);
+        (address freelancer,) = decodeGigAttestationData(request.data.data);
         if (freelancer == address(0)) {
             revert EASYWork__ZeroAddress();
         }
@@ -100,7 +100,7 @@ contract EASYWork is Ownable2Step {
 
         gigStatus[uid] = Status.Active;
 
-        payingResolver.setGigPrice(price);
+        payingResolver.setGigPrice(uid, price);
 
         eas.attest(request);
 
@@ -140,7 +140,7 @@ contract EASYWork is Ownable2Step {
             revert EASYWork__NotAuthorized();
         }
         gigStatus[uid] = Status.Canceled;
-        payingResolver.withdrawGigDeposit(uid, msg.sender);
+        payingResolver.withdrawGigDeposit(uid, msg.sender); // ovo ti ne treba?
     }
 
     function decodeDescriptionGigAttestationData(bytes memory data)
@@ -158,14 +158,16 @@ contract EASYWork is Ownable2Step {
             abi.decode(data, (string, string, uint256, uint256, string));
     }
 
-    function decodeGigAttestationData(bytes memory data) internal pure returns (address freelancer) {
-        assembly {
-            freelancer := mload(add(data, 0x20))
-        }
+    function decodeGigAttestationData(bytes memory data)
+        internal
+        pure
+        returns (address freelancer, string memory description)
+    {
+        (freelancer, description) = abi.decode(data, (address, string));
     }
 }
 
 interface IPayingResolver {
-    function setGigPrice(uint256 gigPrice_) external;
+    function setGigPrice(bytes32 gigId, uint256 gigPrice) external;
     function withdrawGigDeposit(bytes32 uid, address recipient) external;
 }

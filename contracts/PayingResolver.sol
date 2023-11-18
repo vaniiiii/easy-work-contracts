@@ -13,7 +13,7 @@ import {IEAS, Attestation} from "@ethereum-attestation-service/eas-contracts/con
  */
 contract PayingResolver is SchemaResolver, Ownable2Step {
     address easywork;
-    mapping(uint256 => uint256) public gigPrices;
+    mapping(bytes32 => uint256) public gigPrices;
 
     error PayingResolver__NotAuthorzed();
     error PayingResolver__PriceAlreadySet();
@@ -31,7 +31,7 @@ contract PayingResolver is SchemaResolver, Ownable2Step {
         easywork = easywork_;
     }
 
-    function setGigPrice(uint256 gigId, uint256 gigPrice) external onlyEASYWork {
+    function setGigPrice(bytes32 gigId, uint256 gigPrice) external onlyEASYWork {
         if (gigPrices[gigId] != 0) {
             revert PayingResolver__PriceAlreadySet();
         }
@@ -50,8 +50,8 @@ contract PayingResolver is SchemaResolver, Ownable2Step {
             return false;
         }
         // change this
-        uint256 gigPrice = gigPrices[uint256(attestation.refUID)];
-        gigPrices[uint256(attestation.refUID)] = 0;
+        uint256 gigPrice = gigPrices[attestation.refUID];
+        gigPrices[attestation.refUID] = 0;
 
         payable(attestation.recipient).transfer(gigPrice);
 
@@ -62,7 +62,7 @@ contract PayingResolver is SchemaResolver, Ownable2Step {
         return true;
     }
 
-    function withdrawGigDeposit(uint256 gigId, address recipient) external onlyEASYWork {
+    function withdrawGigDeposit(bytes32 gigId, address recipient) external onlyEASYWork {
         uint256 price = gigPrices[gigId];
         gigPrices[gigId] = 0;
 
