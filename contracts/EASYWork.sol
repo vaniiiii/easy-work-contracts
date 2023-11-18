@@ -7,18 +7,24 @@ import "@ethereum-attestation-service/eas-contracts/contracts/ISchemaRegistry.so
 import "./PayingResolver.sol";
 
 // TO-DO:
-// - add schema field to Gig struct
-// - add withdraw functionallity
-// - add more fields to indicate if job is active/finished/whatever
 // - add events
 // - add tests
 
 contract EASYWork is Ownable2Step {
+    // custom types
+    enum Status {
+        None,
+        Created,
+        Active,
+        Finished,
+        Canceled
+    }
+
     // stateVariables
     uint256 public totalGigs;
     bytes32 public immutable descriptionGigSchemaId;
     bytes32 public immutable gigSchemaId;
-    mapping(bytes32 => bool) public gigAssigned;
+    mapping(bytes32 => Status) public gigStatus;
 
     // interfaces
     IPayingResolver public immutable payingResolver;
@@ -32,6 +38,8 @@ contract EASYWork is Ownable2Step {
     error EASYWork__GigAlreadyAssigned();
     error EASYWork__WrongRefUId();
     error EASYWork__InsufficientFunds();
+    error EASYWork__CanNotCancelActiveGig();
+    error EASYWork__CanNotFinishNonActiveGig();
 
     constructor(
         bytes32 descriptionGigSchemaId_,
@@ -58,11 +66,13 @@ contract EASYWork is Ownable2Step {
         unchecked {
             ++totalGigs;
         }
-        eas.attest(request);
+        // add more input validation, like recipient check request.data.recipient == msg.sender
+        bytes32 uid = eas.attest(request);
+        gigStatus[uid] = Status.Created;
     }
 
     function assignGig(bytes32 uid, AttestationRequest calldata request) external payable {
-        if (gigAssigned[uid]) {
+        if (gigStatus[uid] == Status.Active) {
             revert EASYWork__GigAlreadyAssigned();
         }
 
@@ -88,33 +98,50 @@ contract EASYWork is Ownable2Step {
             revert EASYWork__InsufficientFunds();
         }
 
-        gigAssigned[uid] = true;
+        gigStatus[uid] = Status.Active;
+
+        payingResolver.setGigPrice(price);
 
         eas.attest(request);
+
         (bool sent,) = payable(address(payingResolver)).call{value: msg.value}("");
         if (!sent) {
             revert EASYWork__InsufficientFunds();
         }
     }
 
-    /*
-    function closeGig(uint256 gigId, AttestationRequest calldata request) external {
-        Gig memory gig = gigs[gigId];
-
-        if (msg.sender != gig.client) {
-            revert EASYWork__Not_Authorized();
+    function finishGig(bytes32 uid, AttestationRequest calldata request) external {
+        if (gigStatus[uid] != Status.Active) {
+            revert EASYWork__CanNotFinishNonActiveGig();
         }
 
-        gig.freelancer = payable(address(0));
+        Attestation memory attestation = eas.getAttestation(uid);
 
-        payingResolver.setGigPrice(gig.price);
-        // create GigAttestation missing
-        // input validation
-        // add penalty if it's late
+        if (attestation.recipient != msg.sender || attestation.attester != address(this)) {
+            revert EASYWork__NotAuthorized();
+        }
 
+        if (request.data.refUID != uid) {
+            revert EASYWork__WrongRefUId();
+        }
+
+        gigStatus[uid] = Status.Active;
         eas.attest(request); // attest to freelancer
+
+        // add penalty if it's late, further versions
     }
-    */
+
+    function cancelGig(bytes32 uid) external {
+        if (gigStatus[uid] != Status.Created) {
+            revert EASYWork__CanNotCancelActiveGig();
+        }
+        Attestation memory attestation = eas.getAttestation(uid);
+        if (attestation.recipient != msg.sender || attestation.attester != address(this)) {
+            revert EASYWork__NotAuthorized();
+        }
+        gigStatus[uid] = Status.Canceled;
+        payingResolver.withdrawGigDeposit(uid, msg.sender);
+    }
 
     function decodeDescriptionGigAttestationData(bytes memory data)
         internal
@@ -140,8 +167,5 @@ contract EASYWork is Ownable2Step {
 
 interface IPayingResolver {
     function setGigPrice(uint256 gigPrice_) external;
+    function withdrawGigDeposit(bytes32 uid, address recipient) external;
 }
-
-/*
- ["0x3b998ad03fa9b67e797d2c8a5d6fd859c53d12a9026c604dc8fb62da06bc4c70",["0x11c40aDc460a53F4f3Ac6fb18dd06fC72dBd40c8",0,false,"0x0000000000000000000000000000000000000000000000000000000000000000","0x0000000000000000000000000000000000000000000000000000000000000000",0]]
-*/
