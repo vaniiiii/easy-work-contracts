@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@ethereum-attestation-service/eas-contracts/contracts/IEAS.sol";
 import "@ethereum-attestation-service/eas-contracts/contracts/ISchemaRegistry.sol";
 import "./PayingResolver.sol";
+
 // TO-DO:
 // - add schema field to Gig struct
 // - add withdraw functionallity
@@ -13,32 +14,34 @@ import "./PayingResolver.sol";
 // - add tests
 
 contract EASYWork is Ownable2Step {
-    // state variables
+    // stateVariables
     uint256 public totalGigs;
-    // struct Gig
+    bytes32 public immutable descriptionGigSchemaId;
+    bytes32 public immutable gigSchemaId;
+    mapping(bytes32 => bool) public gigAssigned;
 
-    // is this Attestation? shall we add schema field?
-    struct Gig {
-        uint256 id;
-        address payable client;
-        address payable freelancer;
-        uint256 price;
-    }
-    // address resolver;
-    // uint256 deadline;
-    // string description;
-    // string schema;
-
-    Gig[] public gigs;
-
+    // interfaces
     IPayingResolver public immutable payingResolver;
     IEAS public immutable eas;
     ISchemaRegistry public immutable schemaRegistry;
 
-    error EASYWork__Not_Authorized();
-    error EASYWork__Gig_Already_Assigned();
+    // customErrors
+    error EASYWork__WrongSchema();
+    error EASYWork__NotAuthorized();
+    error EASYWork__ZeroAddress();
+    error EASYWork__GigAlreadyAssigned();
+    error EASYWork__WrongRefUId();
+    error EASYWork__InsufficientFunds();
 
-    constructor(address eas_, address schemaRegistry_, address payingResolver_) {
+    constructor(
+        bytes32 descriptionGigSchemaId_,
+        bytes32 gigSchemaId_,
+        address eas_,
+        address schemaRegistry_,
+        address payingResolver_
+    ) {
+        descriptionGigSchemaId = descriptionGigSchemaId_;
+        gigSchemaId = gigSchemaId_;
         eas = IEAS(eas_);
         schemaRegistry = ISchemaRegistry(schemaRegistry_);
         payingResolver = IPayingResolver(payingResolver_);
@@ -48,32 +51,53 @@ contract EASYWork is Ownable2Step {
         schemaRegistry.register(schema, resolver, revocable);
     }
 
-    function createGig(uint256 gigPrice) external {
-        Gig memory gig =
-            Gig({id: totalGigs, client: payable(msg.sender), freelancer: payable(address(0)), price: gigPrice});
-
-        gigs.push(gig);
-
+    function createGig(AttestationRequest calldata request) external {
+        if (request.schema != descriptionGigSchemaId) {
+            revert EASYWork__WrongSchema();
+        }
         unchecked {
             ++totalGigs;
         }
+        eas.attest(request);
     }
 
-    // potentially push this in pending array for freelancer to accept
-    function assignGig(uint256 gigId, address freelancer) external {
-        Gig memory gig = gigs[gigId];
+    function assignGig(bytes32 uid, AttestationRequest calldata request) external payable {
+        if (gigAssigned[uid]) {
+            revert EASYWork__GigAlreadyAssigned();
+        }
 
-        if (gig.freelancer != address(0)) {
-            revert EASYWork__Gig_Already_Assigned();
+        Attestation memory attestation = eas.getAttestation(uid);
+
+        if (attestation.recipient != msg.sender || attestation.attester != address(this)) {
+            revert EASYWork__NotAuthorized();
         }
-        if (msg.sender != gig.client) {
-            revert EASYWork__Not_Authorized();
+        if (request.schema != gigSchemaId) {
+            revert EASYWork__WrongSchema();
         }
-        // transfer money to paying resolver missing
-        // create GigAttestation
-        gigs[gigId].freelancer = payable(freelancer);
+        if (request.data.refUID != uid) {
+            revert EASYWork__WrongRefUId();
+        }
+
+        address freelancer = decodeGigAttestationData(request.data.data);
+        if (freelancer == address(0)) {
+            revert EASYWork__ZeroAddress();
+        }
+
+        (,,, uint256 price,) = decodeDescriptionGigAttestationData(attestation.data);
+        if (msg.value < price) {
+            revert EASYWork__InsufficientFunds();
+        }
+
+        gigAssigned[uid] = true;
+
+        eas.attest(request);
+        (bool sent,) = payable(address(payingResolver)).call{value: msg.value}("");
+        if (!sent) {
+            revert EASYWork__InsufficientFunds();
+        }
     }
 
+    /*
     function closeGig(uint256 gigId, AttestationRequest calldata request) external {
         Gig memory gig = gigs[gigId];
 
@@ -85,8 +109,32 @@ contract EASYWork is Ownable2Step {
 
         payingResolver.setGigPrice(gig.price);
         // create GigAttestation missing
+        // input validation
+        // add penalty if it's late
 
         eas.attest(request); // attest to freelancer
+    }
+    */
+
+    function decodeDescriptionGigAttestationData(bytes memory data)
+        internal
+        pure
+        returns (
+            string memory jobTitle,
+            string memory category,
+            uint256 deadline,
+            uint256 price,
+            string memory description
+        )
+    {
+        (jobTitle, category, deadline, price, description) =
+            abi.decode(data, (string, string, uint256, uint256, string));
+    }
+
+    function decodeGigAttestationData(bytes memory data) internal pure returns (address freelancer) {
+        assembly {
+            freelancer := mload(add(data, 0x20))
+        }
     }
 }
 
