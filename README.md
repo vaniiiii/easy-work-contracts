@@ -54,3 +54,17 @@ As freelance trends evolve, EasyWork stands ready. EAS's modular approach ensure
 
 EasyWork is not just a freelance platform; it's a transformative force, leveraging EAS to provide transparency, trust, and a decentralized approach to collaboration. Join us in redefining how freelancers and clients interact in the digital economy! 🌐✨
 
+# Contracts 
+
+## Linea 
+PayingResolver.sol https://explorer.goerli.linea.build/address/0x45B1cc693B7B1090C4411B2d024B41d12fa89973
+
+EasyWork.sol
+https://explorer.goerli.linea.build/address/0x84f470944EA413C4419AD624B10a62E5bE4785Ac
+
+## Arbitrum
+PayingResolver.sol 
+https://goerli.arbiscan.io/address/0x64817795cF38eFfBD799B70Fa6C8c833f4F6b0bF
+
+EasyWork.sol
+https://goerli.arbiscan.io/address/0x8793DC5D2Af8460EeC76Fca8547F710ac66954db
