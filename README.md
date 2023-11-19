@@ -56,6 +56,15 @@ The reputation system on EasyWork is not static; it's dynamic and blockchain-bas
 As freelance trends evolve, EasyWork stands ready. EAS's modular approach ensures the platform remains agile and adaptable, ready to embrace future enhancements and meet the changing needs of freelancers and clients.
 
 EasyWork is not just a freelance platform; it's a transformative force, leveraging EAS to provide transparency, trust, and a decentralized approach to collaboration. Join us in redefining how freelancers and clients interact in the digital economy! 🌐✨
+# Frontend
+Frontend repo: 
+https://github.com/lukalazarevic123/easywork-frontend
+# Backend 
+Backend repo:
+https://github.com/lukalazarevic123/easywork-backend
+
+
+
 
 # Contracts 
 
