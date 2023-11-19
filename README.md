@@ -2,7 +2,7 @@
 
 Welcome to a new era of freelancing where trust is not just earned but seamlessly woven into the fabric of every collaboration. Today, we're thrilled to introduce **EasyWork**, a decentralized freelance platform that harnesses the Ethereum Attestation Protocol (EAS) to redefine how freelancers and clients connect and collaborate.
 
-P.S. Find the links to deployed contracts, frontend/backend repo at the end.
+P.S. Find the links to deployed contracts, frontend/backend repos at the end.
 
 
 ## The Trust Challenge:
